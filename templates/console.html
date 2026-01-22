@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Konsol</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="console-page">
+  <!-- Page: Console -->
+  <div class="wrap">
+  <!-- Header -->
+  <header class="top">
+      <div class="top-main">
+        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <nav>
+          <a href="{{ url_for('home') }}">Naryad</a>
+          <a href="{{ url_for('users') }}">İstifadəçilər</a>
+          <a href="{{ url_for('history') }}">Tarixçə</a>
+          <a href="{{ url_for('test_view') }}">Test</a>
+          <a href="{{ url_for('buraxlis') }}">Buraxılış</a>
+          <a class="is-active" href="{{ url_for('console') }}">Konsol</a>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick="var d=document.getElementById('app-info'); if (d.showModal) d.showModal(); else d.setAttribute('open','open');"
+        >İnfo</button>
+        <a class="btn btn-ghost" href="{{ url_for('console_logout') }}">Konsoldan çıxış</a>
+      </div>
+    </header>
+    <dialog id="app-info" class="status-dialog info-dialog">
+      <div class="dialog-head">
+        <h3>İnfo</h3>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()">Bağla</button>
+      </div>
+      <div class="dialog-body info-grid">
+        <div class="info-item">
+          <div class="info-title">TK</div>
+          <div class="info-text">Hər {{ app_info.ttm_cycle_days }} gündən bir hamısı birlikdə seçilir.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">TP</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Tibb Məntəqəsi</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">İcazəli</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Yeməkxana</div>
+          <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">2-ci Bölük</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+        </div>
+      </div>
+    </dialog>
+
+  <!-- Command Input -->
+  <section class="card">
+      <h2>Konsol</h2>
+      <form method="post" action="{{ url_for('console') }}" class="console-form">
+        <textarea name="commands" rows="6" placeholder="Komandaları buraya yazın...">{{ cmd_text }}</textarea>
+        <button class="primary" type="submit">İcra et</button>
+      </form>
+      {% if output %}
+        <pre class="console-output">{{ output }}</pre>
+      {% endif %}
+      <div class="muted console-hint">
+        Nümunə: set status_days ttm=5,6,7 | set status_gap ttm=3 | set boluk2_cycle 3 | help
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Test</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="test-page">
+  <!-- Page: Test -->
+  <div class="wrap">
+  <!-- Header -->
+  <header class="top">
+      <div class="top-main">
+        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <nav>
+          <a href="{{ url_for('home') }}">Naryad</a>
+          <a href="{{ url_for('users') }}">İstifadəçilər</a>
+          <a href="{{ url_for('history') }}">Tarixçə</a>
+          <a class="is-active" href="{{ url_for('test_view') }}">Test</a>
+          <a href="{{ url_for('buraxlis') }}">Buraxılış</a>
+          <a href="{{ url_for('console') }}">Konsol</a>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick="var d=document.getElementById('app-info'); if (d.showModal) d.showModal(); else d.setAttribute('open','open');"
+        >İnfo</button>
+      </div>
+    </header>
+    <dialog id="app-info" class="status-dialog info-dialog">
+      <div class="dialog-head">
+        <h3>İnfo</h3>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()">Bağla</button>
+      </div>
+      <div class="dialog-body info-grid">
+        <div class="info-item">
+          <div class="info-title">TK</div>
+          <div class="info-text">Hər {{ app_info.ttm_cycle_days }} gündən bir hamısı birlikdə seçilir.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">TP</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Tibb Məntəqəsi</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">İcazəli</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Yeməkxana</div>
+          <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">2-ci Bölük</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+        </div>
+      </div>
+    </dialog>
+
+  <!-- Filters -->
+  <section class="card">
+      <form method="get" action="{{ url_for('test_view') }}" class="row">
+        <label>Ay:</label>
+        <input type="month" name="month" value="{{ ym }}">
+        <button type="submit">Göstər</button>
+        <button type="submit" name="reset" value="1" class="btn">Təmizlə</button>
+        {% if reset %}
+          <a class="btn" href="{{ url_for('export_test_docx', month=ym, reset=1, seed=seed) }}">Word çıxar</a>
+        {% else %}
+          <a class="btn" href="{{ url_for('export_test_docx', month=ym, seed=seed) }}">Word çıxar</a>
+        {% endif %}
+      </form>
+      {% if test_saved_at %}
+        <div class="muted">Yadda saxlanıb: <b>{{ test_saved_at }}</b></div>
+      {% else %}
+        <div class="muted">Yadda saxlanmayıb.</div>
+      {% endif %}
+      <div class="row action-row">
+        <form method="post" action="{{ url_for('test_save') }}" class="inline-form">
+          <input type="hidden" name="month" value="{{ ym }}">
+          <input type="hidden" name="reset" value="{{ 1 if reset else 0 }}">
+          <input type="hidden" name="seed" value="{{ seed }}">
+          <button class="btn" type="submit" {% if test_saved_at %}disabled{% endif %}>Yadda saxla</button>
+        </form>
+        <form method="post" action="{{ url_for('test_clear') }}" class="inline-form">
+          <input type="hidden" name="month" value="{{ ym }}">
+          <button class="danger" type="submit" {% if not test_saved_at %}disabled{% endif %}>Təmizlə</button>
+        </form>
+      </div>
+      <p class="muted">Test simulyasiya: seçilən ayın 1-{{ total_days }} günləri üçün hər gün 11 növbətçi seçilir.</p>
+
+    </section>
+
+    <!-- Matrix -->
+    <section class="card">
+      <h2>{{ ym }} - Test seçimi cədvəli</h2>
+
+      <h3>Bölük 1</h3>
+      <div class="matrix-wrap">
+        <table class="matrix-grid test-matrix">
+          <thead>
+            <tr>
+              <th class="sticky-col index-col">№</th>
+              <th class="sticky-col user-col">İstifadəçi</th>
+              {% for d in days %}
+                <th class="matrix-head">{{ d.strftime("%d") }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in boluk1_users %}
+              <tr>
+                <td class="matrix-index sticky-col index-col">{{ loop.index }}</td>
+                <td class="matrix-user sticky-col user-col">{{ u["name"] }}</td>
+                {% for d in days %}
+                  {% set ds = d.strftime("%Y-%m-%d") %}
+                  {% set g = matrix.get(u["id"], {}).get(ds) %}
+                  <td class="matrix-cell {% if g %}matrix-filled{% endif %}">
+                    {% if g %}
+                      {% set full = group_labels.get(g, g) %}
+                      {% set short = group_labels_short.get(g, g) %}
+                      <span class="matrix-badge" title="{{ full }}">{{ short }}</span>
+                    {% else %}
+                      <span class="matrix-empty">-</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Bölük 2</h3>
+      <div class="matrix-wrap">
+        <table class="matrix-grid test-matrix">
+          <thead>
+            <tr>
+              <th class="sticky-col index-col">№</th>
+              <th class="sticky-col user-col">İstifadəçi</th>
+              {% for d in days %}
+                <th class="matrix-head">{{ d.strftime("%d") }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in boluk2_users %}
+              <tr>
+                <td class="matrix-index sticky-col index-col">{{ loop.index }}</td>
+                <td class="matrix-user sticky-col user-col">{{ u["name"] }}</td>
+                {% for d in days %}
+                  {% set ds = d.strftime("%Y-%m-%d") %}
+                  {% set g = matrix.get(u["id"], {}).get(ds) %}
+                  <td class="matrix-cell {% if g %}matrix-filled{% endif %}">
+                    {% if g %}
+                      {% set full = group_labels.get(g, g) %}
+                      {% set short = group_labels_short.get(g, g) %}
+                      <span class="matrix-badge" title="{{ full }}">{{ short }}</span>
+                    {% else %}
+                      <span class="matrix-empty">-</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

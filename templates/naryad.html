@@ -1,0 +1,405 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Naryad</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="naryad-page">
+  <!-- Page: Naryad -->
+  <div class="wrap">
+  <!-- Header -->
+  <header class="top">
+      <div class="top-main">
+        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <nav>
+          <a class="is-active" href="{{ url_for('naryad', d=shift_date.strftime('%Y-%m-%d')) }}">Naryad</a>
+          <a href="{{ url_for('users') }}">İstifadəçilər</a>
+          <a href="{{ url_for('history') }}">Tarixçə</a>
+          <a href="{{ url_for('test_view') }}">Test</a>
+          <a href="{{ url_for('buraxlis') }}">Buraxılış</a>
+          <a href="{{ url_for('console') }}">Konsol</a>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick="var d=document.getElementById('app-info'); if (d.showModal) d.showModal(); else d.setAttribute('open','open');"
+        >İnfo</button>
+      </div>
+    </header>
+    <dialog id="app-info" class="status-dialog info-dialog">
+      <div class="dialog-head">
+        <h3>İnfo</h3>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()">Bağla</button>
+      </div>
+      <div class="dialog-body info-grid">
+        <div class="info-item">
+          <div class="info-title">TK</div>
+          <div class="info-text">Hər {{ app_info.ttm_cycle_days }} gündən bir hamısı birlikdə seçilir.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">TP</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Tibb Məntəqəsi</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">İcazəli</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Yeməkxana</div>
+          <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">2-ci Bölük</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+        </div>
+      </div>
+    </dialog>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash">
+          {% for cat, msg in messages %}
+            <div class="flash-item {{cat}}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+  <!-- Date/Actions -->
+  <section class="card">
+      <div class="muted">Vaxtı: <b>{{ "%02d"|format(shift_hour) }}:00</b> -> növbəti gün <b>{{ "%02d"|format(shift_hour) }}:00</b> ({{ shift_date.strftime("%d.%m.%Y") }} -> {{ shift_next_date.strftime("%d.%m.%Y") }})</div>
+      {% if not is_preview %}
+        {% if shift_confirmed_at %}
+          <div class="muted">Təsdiqlənib: <b>{{ shift_confirmed_at }}</b></div>
+        {% else %}
+          <div class="muted">Təsdiqlənməyib. Yadda saxla ilə təsdiqləyin.</div>
+        {% endif %}
+      {% endif %}
+
+      <form method="get" action="{{ url_for('naryad') }}" class="row">
+        <label>Növbə tarixi:</label>
+        <input type="date" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+        <button type="submit">Göstər</button>
+        <a class="btn" href="{{ url_for('export_docx', d=shift_date.strftime('%Y-%m-%d')) }}">Word çıxar</a>
+      </form>
+
+      <div class="row action-row">
+        <form method="post" action="{{ url_for('generate') }}" class="inline-form">
+          <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+          <button class="primary" type="submit">Yeni naryad yarat</button>
+        </form>
+
+        <form method="post" action="{{ url_for('toggle_boluk2') }}" class="inline-form">
+          <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+          <input type="hidden" name="enabled" value="{{ 0 if boluk2_enabled else 1 }}"/>
+          <button class="btn" type="submit">
+            2-ci bölük: {{ "ON" if boluk2_enabled else "OFF" }}
+          </button>
+        </form>
+
+        {% if not is_preview %}
+          <form method="post" action="{{ url_for('confirm_shift') }}" class="inline-form">
+            <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+            <button
+              class="btn"
+              type="submit"
+              {% if not has_selection or shift_confirmed_at %}disabled{% endif %}
+            >Yadda saxla</button>
+          </form>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('clear_all') }}" class="inline-form">
+          <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+          <button
+            class="danger"
+            type="submit"
+            onclick="return confirm('Bütün naryad tarixçəsi silinsin?');"
+          >
+            Hamısını təmizlə
+          </button>
+        </form>
+      </div>
+
+  </section>
+
+  <!-- Naryad Table + Status Panels -->
+  <section class="grid">
+      <div class="card">
+        <h2>Yeni Naryad</h2>
+        <div class="table naryad-table">
+          <div class="trow thead">
+            <div>Qrup</div><div>Növbətçilər</div>
+          </div>
+
+          {% set order = ["bas","g1","g2","g3","p1","p2","p3","nbm","nbm2"] %}
+          {% for g in order %}
+            <div class="trow">
+              <div class="gname">{{ group_labels.get(g, g) }}</div>
+              <div>
+                {% if data.get(g) %}
+                  {% for u in data.get(g) %}
+                    <div class="selected-item">
+                      <div class="selected-head">
+                        <span class="pill">{{ u["name"] }}</span>
+                      </div>
+                      {% if not is_preview %}
+                        {% set ch = change_map.get(g, {}).get(u["id"]) %}
+                        {% if ch %}
+                          <div class="change-note">
+                            Əvəzlənib: {{ ch["old_name"] or "Növbətçi" }}
+                            {% if ch["reason"] %} - Səbəb: {{ ch["reason"] }}{% endif %}
+                          </div>
+                        {% endif %}
+                        <details class="change-box">
+                          <summary>Dəyiş</summary>
+                          <form class="change-form" method="post" action="{{ url_for('change_user') }}">
+                            <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
+                            <input type="hidden" name="group" value="{{ g }}"/>
+                            <input type="hidden" name="old_user_id" value="{{ u["id"] }}"/>
+                            {% set opts = replacement_options.get(g, {}).get(u["id"]) %}
+                            {% if opts %}
+                              <div class="change-options">
+                                {% for cand in opts %}
+                                  <label>
+                                    <input type="radio" name="new_user_id" value="{{ cand['id'] }}">
+                                    {{ cand["name"] }}
+                                  </label>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <span class="muted">Uyğun növbətçi yoxdur.</span>
+                            {% endif %}
+                            <div class="divider"></div>
+  {% set swaps = swap_candidates.get(u["id"], []) %}
+  {% if swaps %}
+  <div class="change-row">
+    <select name="swap_user_id">
+      <option value="">-- seç (yer dəyiş) --</option>
+      {% for cand in swaps %}
+        <option value="{{ cand['id'] }}">
+          {{ cand["name"] }} - {{ group_labels.get(cand["group"], cand["group"]) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <span class="muted">Uyğun yer dəyişimi yoxdur.</span>
+  {% endif %}
+  <div class="change-row">
+  <input type="text" name="reason" placeholder="Səbəb (ixtiyari)" maxlength="120">
+  <button type="submit">Dəyiş</button>
+  </div>
+</form>
+                        </details>
+                                              {% endif %}
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <span class="muted">-</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+      </div>
+
+      <div class="card status-card">
+        <h2>Statuslar</h2>
+
+        <div class="status-panel">
+          {% for s in status_order %}
+            {% set status_list = status_groups[s] %}
+            {% set preview_limit = 4 if s in ["tp", "ttm"] else 3 %}
+            {% set status_preview = status_list[:preview_limit] %}
+            {% set show_more = status_list|length > preview_limit and s != "ttm" %}
+            <div class="status-row status-{{ s }}">
+              <div class="status-meta">
+                <span class="status-dot"></span>
+                <span class="status-label">{{ status_labels.get(s, s) }}</span>
+                <span class="status-count">{{ status_groups[s]|length }}</span>
+              </div>
+              <div class="status-preview">
+                {% if status_list %}
+                  {% for u in status_preview %}
+                    <span class="status-chip">{{ u["name"] }}</span>
+                  {% endfor %}
+                  {% if show_more %}
+                    <button type="button" class="status-link status-more" data-dialog="status-{{ s }}">
+                      Hamısı ({{ status_list|length }})
+                    </button>
+                  {% endif %}
+                {% else %}
+                  <span class="muted">-</span>
+                {% endif %}
+              </div>
+              {% if status_list and show_more %}
+                <dialog id="status-{{ s }}" class="status-dialog">
+                  <div class="dialog-head">
+                    <h3>{{ status_labels.get(s, s) }}</h3>
+                    <button type="button" class="icon-btn" data-close>Bağla</button>
+                  </div>
+                  <div class="dialog-body">
+                    {% for u in status_list %}
+                      <span class="status-chip">{{ u["name"] }}</span>
+                    {% endfor %}
+                  </div>
+                </dialog>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="free-panel free-split">
+          <div class="free-block">
+            <div class="free-head">
+              <h3>Boşda qalanlar (Bölük 1)</h3>
+              <span class="status-count">{{ free_boluk1|length }}</span>
+            </div>
+            {% set free1_preview = free_boluk1[:4] %}
+            {% set free1_more = free_boluk1|length > 4 %}
+            <div class="free-list">
+              {% if free_boluk1 %}
+                {% for u in free1_preview %}
+                  <span class="free-chip">{{ u["name"] }}</span>
+                {% endfor %}
+                {% if free1_more %}
+                  <button type="button" class="status-link status-more" data-dialog="free-b1-all">
+                    Hamısı ({{ free_boluk1|length }})
+                  </button>
+                {% endif %}
+              {% else %}
+                <span class="muted">-</span>
+              {% endif %}
+            </div>
+            {% if free1_more %}
+              <dialog id="free-b1-all" class="status-dialog">
+                <div class="dialog-head">
+                  <h3>Boşda qalanlar (Bölük 1)</h3>
+                  <button type="button" class="icon-btn" data-close>Bağla</button>
+                </div>
+                <div class="dialog-body">
+                  {% for u in free_boluk1 %}
+                    <span class="status-chip">{{ u["name"] }}</span>
+                  {% endfor %}
+                </div>
+              </dialog>
+            {% endif %}
+          </div>
+          <div class="free-block">
+            <div class="free-head">
+              <h3>Boşda qalanlar (Bölük 2)</h3>
+              <span class="status-count">{{ free_boluk2|length }}</span>
+            </div>
+            {% set free2_preview = free_boluk2[:4] %}
+            {% set free2_more = free_boluk2|length > 4 %}
+            <div class="free-list">
+              {% if free_boluk2 %}
+                {% for u in free2_preview %}
+                  <span class="free-chip">{{ u["name"] }}</span>
+                {% endfor %}
+                {% if free2_more %}
+                  <button type="button" class="status-link status-more" data-dialog="free-b2-all">
+                    Hamısı ({{ free_boluk2|length }})
+                  </button>
+                {% endif %}
+              {% else %}
+                <span class="muted">-</span>
+              {% endif %}
+            </div>
+            {% if free2_more %}
+              <dialog id="free-b2-all" class="status-dialog">
+                <div class="dialog-head">
+                  <h3>Boşda qalanlar (Bölük 2)</h3>
+                  <button type="button" class="icon-btn" data-close>Bağla</button>
+                </div>
+                <div class="dialog-body">
+                  {% for u in free_boluk2 %}
+                    <span class="status-chip">{{ u["name"] }}</span>
+                  {% endfor %}
+                </div>
+              </dialog>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="boluk-panel">
+          <div class="boluk-block">
+            <div class="boluk-head">
+              <h3>Bölük 1</h3>
+              <span class="status-count">{{ boluk1_users|length }}</span>
+            </div>
+            <div class="boluk-list">
+              {% if boluk1_users %}
+                {% for u in boluk1_users %}
+                  <span class="boluk-chip">{{ u["name"] }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="muted">-</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="boluk-block">
+            <div class="boluk-head">
+              <h3>Bölük 2</h3>
+              <span class="status-count">{{ boluk2_users|length }}</span>
+            </div>
+            <div class="boluk-list">
+              {% if boluk2_users %}
+                {% for u in boluk2_users %}
+                  <span class="boluk-chip">{{ u["name"] }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="muted">-</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+    (function () {
+      var openers = document.querySelectorAll(".status-more");
+      openers.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = btn.getAttribute("data-dialog");
+          var dlg = document.getElementById(id);
+          if (!dlg) return;
+          if (dlg.showModal) {
+            dlg.showModal();
+          } else {
+            dlg.setAttribute("open", "open");
+          }
+        });
+      });
+
+      document.querySelectorAll(".status-dialog").forEach(function (dlg) {
+        dlg.addEventListener("click", function (e) {
+          if (e.target === dlg && dlg.close) {
+            dlg.close();
+          }
+        });
+      });
+
+      document.querySelectorAll("[data-close]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var dlg = btn.closest("dialog");
+          if (dlg && dlg.close) {
+            dlg.close();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Konsol Girişi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <form method="post" action="{{ url_for('console') }}" class="auth-form">
+      <input type="password" name="pin" placeholder="PIN" autofocus>
+      <button class="primary" type="submit">Daxil ol</button>
+    </form>
+  </div>
+</body>
+</html>

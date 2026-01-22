@@ -1,0 +1,247 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>İstifadəçilər</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Page: Users -->
+  <div class="wrap">
+  <!-- Header -->
+  <header class="top">
+      <div class="top-main">
+        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <nav>
+          <a href="{{ url_for('home') }}">Naryad</a>
+          <a class="is-active" href="{{ url_for('users') }}">İstifadəçilər</a>
+          <a href="{{ url_for('history') }}">Tarixçə</a>
+          <a href="{{ url_for('test_view') }}">Test</a>
+          <a href="{{ url_for('buraxlis') }}">Buraxılış</a>
+          <a href="{{ url_for('console') }}">Konsol</a>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick="var d=document.getElementById('app-info'); if (d.showModal) d.showModal(); else d.setAttribute('open','open');"
+        >İnfo</button>
+      </div>
+    </header>
+    <dialog id="app-info" class="status-dialog info-dialog">
+      <div class="dialog-head">
+        <h3>İnfo</h3>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()">Bağla</button>
+      </div>
+      <div class="dialog-body info-grid">
+        <div class="info-item">
+          <div class="info-title">TK</div>
+          <div class="info-text">Hər {{ app_info.ttm_cycle_days }} gündən bir hamısı birlikdə seçilir.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">TP</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Tibb Məntəqəsi</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">İcazəli</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Yeməkxana</div>
+          <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">2-ci Bölük</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+        </div>
+      </div>
+    </dialog>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash">
+          {% for cat, msg in messages %}
+            <div class="flash-item {{cat}}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+  <!-- Month Filter -->
+  <section class="card">
+      <form method="get" action="{{ url_for('users') }}" class="row">
+        <label>Ay:</label>
+        <input type="month" name="month" value="{{ ym }}">
+        <button type="submit">Göstər</button>
+      </form>
+    </section>
+
+    <!-- Add User -->
+    <section class="card">
+      <h2>İstifadəçi əlavə et</h2>
+      <form method="post" action="{{ url_for('users_add') }}" class="row">
+        <input type="hidden" name="month" value="{{ ym }}">
+        <input type="text" name="name" placeholder="Ad">
+        <select name="boluk">
+          <option value="1">Bölük 1</option>
+          <option value="2">Bölük 2</option>
+        </select>
+        <select name="role">
+          <option value="normal">{{ role_labels["normal"] }}</option>
+          <option value="bas">{{ role_labels["bas"] }}</option>
+        </select>
+        <select name="status">
+          {% for s in ["aktiv","yx","izinli","tm","tp","ttm"] %}
+            <option value="{{s}}">{{ status_labels[s] }}</option>
+          {% endfor %}
+        </select>
+        <button class="primary" type="submit">Əlavə et</button>
+      </form>
+    </section>
+
+  <!-- User Table -->
+  <section class="card card-sticky">
+      <form method="post" action="{{ url_for('users_save_all') }}">
+        <input type="hidden" name="month" value="{{ ym }}">
+
+        <div class="savebar">
+          <button class="primary" type="submit">Yadda saxla</button>
+          <span class="muted">Hamısı birlikdə yadda saxlanır.</span>
+        </div>
+
+        <div class="table users-table">
+          <div class="trow thead users-head">
+            <div>Ad</div>
+            <div>Bölük</div>
+            <div>Rol</div>
+            <div>Status</div>
+            <div>Bu ay neçə dəfə?</div>
+            <div>Sil</div>
+          </div>
+
+          {% set idx = namespace(value=0) %}
+
+          <div class="section-row">Bölük 1</div>
+          {% for u in boluk1_users %}
+            {% set idx.value = idx.value + 1 %}
+            <div class="trow users-row">
+              <input type="hidden" name="id[]" value="{{u['id']}}">
+
+              <div class="name-cell">
+                <span class="index-badge">{{ idx.value }}</span>
+                <input class="iname" type="text" name="name[]" value="{{u['name']}}">
+                {% if u["status"]=="yx" and u["yx_next_eligible"] %}
+                  <div class="muted">Yeməkxana növbəti seçim: {{u["yx_next_eligible"]}}</div>
+                {% endif %}
+              </div>
+
+              <div>
+                <select name="boluk[]">
+                  <option value="1" {% if u["boluk"]==1 %}selected{% endif %}>1</option>
+                  <option value="2" {% if u["boluk"]==2 %}selected{% endif %}>2</option>
+                </select>
+              </div>
+
+              <div>
+                <select name="role[]">
+                  <option value="normal" {% if u["role"]=="normal" %}selected{% endif %}>{{ role_labels["normal"] }}</option>
+                  <option value="bas" {% if u["role"]=="bas" %}selected{% endif %}>{{ role_labels["bas"] }}</option>
+                </select>
+              </div>
+
+              <div>
+                <select name="status[]">
+                  {% for s in ["aktiv","yx","izinli","tm","tp","ttm"] %}
+                    <option value="{{s}}" {% if u["status"]==s %}selected{% endif %}>{{ status_labels[s] }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="muted">
+                {{ monthly_counts.get(u["id"], 0) }}
+              </div>
+
+              <div>
+                <button
+                  class="danger"
+                  type="submit"
+                  name="delete_id"
+                  value="{{ u['id'] }}"
+                  formaction="{{ url_for('users_delete') }}"
+                  formmethod="post"
+                  onclick="return confirm('İstifadəçi silinsin?');"
+                >
+                  Sil
+                </button>
+              </div>
+            </div>
+          {% endfor %}
+
+          <div class="section-row">Bölük 2</div>
+          {% for u in boluk2_users %}
+            {% set idx.value = idx.value + 1 %}
+            <div class="trow users-row">
+              <input type="hidden" name="id[]" value="{{u['id']}}">
+
+              <div class="name-cell">
+                <span class="index-badge">{{ idx.value }}</span>
+                <input class="iname" type="text" name="name[]" value="{{u['name']}}">
+                {% if u["status"]=="yx" and u["yx_next_eligible"] %}
+                  <div class="muted">Yeməkxana növbəti seçim: {{u["yx_next_eligible"]}}</div>
+                {% endif %}
+              </div>
+
+              <div>
+                <select name="boluk[]">
+                  <option value="1" {% if u["boluk"]==1 %}selected{% endif %}>1</option>
+                  <option value="2" {% if u["boluk"]==2 %}selected{% endif %}>2</option>
+                </select>
+              </div>
+
+              <div>
+                <select name="role[]">
+                  <option value="normal" {% if u["role"]=="normal" %}selected{% endif %}>{{ role_labels["normal"] }}</option>
+                  <option value="bas" {% if u["role"]=="bas" %}selected{% endif %}>{{ role_labels["bas"] }}</option>
+                </select>
+              </div>
+
+              <div>
+                <select name="status[]">
+                  {% for s in ["aktiv","yx","izinli","tm","tp","ttm"] %}
+                    <option value="{{s}}" {% if u["status"]==s %}selected{% endif %}>{{ status_labels[s] }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="muted">
+                {{ monthly_counts.get(u["id"], 0) }}
+              </div>
+
+              <div>
+                <button
+                  class="danger"
+                  type="submit"
+                  name="delete_id"
+                  value="{{ u['id'] }}"
+                  formaction="{{ url_for('users_delete') }}"
+                  formmethod="post"
+                  onclick="return confirm('İstifadəçi silinsin?');"
+                >
+                  Sil
+                </button>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="muted">Cəmi istifadəçi: {{ users|length }}</div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

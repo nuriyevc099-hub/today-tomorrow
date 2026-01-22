@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tarixçə</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="history-page">
+  <!-- Page: History -->
+  <div class="wrap">
+  <!-- Header -->
+  <header class="top">
+      <div class="top-main">
+        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <nav>
+          <a href="{{ url_for('home') }}">Naryad</a>
+          <a href="{{ url_for('users') }}">İstifadəçilər</a>
+          <a class="is-active" href="{{ url_for('history') }}">Tarixçə</a>
+          <a href="{{ url_for('test_view') }}">Test</a>
+          <a href="{{ url_for('buraxlis') }}">Buraxılış</a>
+          <a href="{{ url_for('console') }}">Konsol</a>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick="var d=document.getElementById('app-info'); if (d.showModal) d.showModal(); else d.setAttribute('open','open');"
+        >İnfo</button>
+      </div>
+    </header>
+    <dialog id="app-info" class="status-dialog info-dialog">
+      <div class="dialog-head">
+        <h3>İnfo</h3>
+        <button type="button" class="icon-btn" onclick="this.closest('dialog').close()">Bağla</button>
+      </div>
+      <div class="dialog-body info-grid">
+        <div class="info-item">
+          <div class="info-title">TK</div>
+          <div class="info-text">Hər {{ app_info.ttm_cycle_days }} gündən bir hamısı birlikdə seçilir.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">TP</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Tibb Məntəqəsi</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">İcazəli</div>
+          <div class="info-text">Seçilməz.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">Yeməkxana</div>
+          <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-title">2-ci Bölük</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+        </div>
+      </div>
+    </dialog>
+
+  <!-- Filters -->
+  <section class="grid">
+      <div class="card">
+        <form method="get" action="{{ url_for('history') }}" class="row">
+          <label>Ay:</label>
+          <input type="month" name="month" value="{{ ym }}">
+
+          <label>Bölük:</label>
+          <select name="boluk">
+            <option value="" {% if not boluk_filter %}selected{% endif %}>Hamısı</option>
+            <option value="1" {% if boluk_filter==1 %}selected{% endif %}>Bölük 1</option>
+            <option value="2" {% if boluk_filter==2 %}selected{% endif %}>Bölük 2</option>
+          </select>
+
+          <label>İstifadəçi:</label>
+          <select name="user_id">
+            <option value="">-- seç --</option>
+            <option value="all" {% if show_all %}selected{% endif %}>Bütün istifadəçilər</option>
+            {% for u in users %}
+              <option value="{{u['id']}}" {% if user_id==u['id'] %}selected{% endif %}>
+                {{u['name']}} (B{{ u['boluk'] }})
+              </option>
+            {% endfor %}
+          </select>
+
+          <button type="submit">Göstər</button>
+          <a class='btn' href="{{ url_for('export_history_docx', month=ym, user_id=(user_id if user_id else 'all')) }}">Word çıxar</a>
+        </form>
+
+        {% if show_all %}
+          <p class="muted">Bütün istifadəçilər göstərilir, ay: <b>{{ym}}</b>.</p>
+        {% elif selected_user %}
+          <p class="muted">
+            Seçilən: <b>{{selected_user["name"]}}</b> - Ay: <b>{{ym}}</b>
+          </p>
+        {% else %}
+          <p class="muted">İstifadəçi seç və ya bütün istifadəçilər, sonra Göstər bas.</p>
+        {% endif %}
+      </div>
+    </section>
+
+  <!-- History Matrix -->
+  {% if show_all or selected_user %}
+      <section class="card">
+        {% if show_all %}
+          <h2>Bütün istifadəçilər - {{ym}} tarixçə</h2>
+        {% else %}
+          <h2>{{selected_user["name"]}} - {{ym}} tarixçə</h2>
+        {% endif %}
+
+        {% set short_labels = {
+          "bas": "TN",
+          "g1": "G1",
+          "g2": "G2",
+          "g3": "G3",
+          "p1": "P1",
+          "p2": "P2",
+          "p3": "P3",
+          "nbm": "NB1",
+          "nbm2": "NB2"
+        } %}
+
+        <div class="matrix-wrap">
+          <table class="matrix-grid hist-matrix">
+            <thead>
+              <tr>
+                <th class="sticky-col index-col">№</th>
+                <th class="sticky-col user-col">İstifadəçi</th>
+                {% for d in days %}
+                  <th class="matrix-head">{{ d.strftime("%d") }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in matrix_users %}
+                <tr>
+                  <td class="matrix-index sticky-col index-col">{{ loop.index }}</td>
+                  <td class="matrix-user sticky-col user-col">{{ u["name"] }}</td>
+                  {% for d in days %}
+                    {% set ds = d.strftime("%Y-%m-%d") %}
+                    {% set g = matrix.get(u["id"], {}).get(ds) %}
+                    <td class="matrix-cell {% if g %}matrix-filled{% endif %}">
+                      {% if g %}
+                        {% set full = group_labels.get(g, g) %}
+                        {% set short = short_labels.get(g, full) %}
+                        <span class="matrix-badge" title="{{ full }}">{{ short }}</span>
+                      {% else %}
+                        <span class="matrix-empty">-</span>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  </div>
+</body>
+</html>
