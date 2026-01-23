@@ -216,31 +216,124 @@ def inject_labels():
     )
 
 
+def _is_postgres() -> bool:
+    try:
+        return engine.dialect.name == "postgresql"
+    except Exception:
+        return False
+
+
+class DBCompat:
+    """
+    sqlite3 API-yə oxşar wrapper:
+    - Postgres-də ? -> %s çevirir
+    - INSERT OR IGNORE -> ON CONFLICT DO NOTHING
+    - PRAGMA table_info(users) -> Postgres columns query
+    - sqlite3.Row tərzi: Postgres-də dict qaytarır (r["col"] işləyir)
+    """
+    def __init__(self, conn, is_pg: bool):
+        self.conn = conn
+        self.is_pg = is_pg
+        if not is_pg:
+            self.conn.row_factory = sqlite3.Row
+
+    def close(self):
+        self.conn.close()
+
+    def commit(self):
+        self.conn.commit()
+
+    def cursor(self):
+        return self.conn.cursor()
+
+    def _rewrite_sql(self, sql: str) -> str:
+        if not self.is_pg:
+            return sql
+
+        s = sql
+
+        # INSERT OR IGNORE -> ON CONFLICT DO NOTHING
+        # (Postgres-də conflict target verməsən də olar)
+        s = s.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+        if "INSERT INTO" in s and "ON CONFLICT" not in s and "DO NOTHING" not in s:
+            # yalnız sqlite-dan gələn "INSERT OR IGNORE" halları üçün
+            # (yuxarıda IGNORE silindikdən sonra burada əlavə edirik)
+            if "INSERT INTO boluk2_fill_log" in s:
+                s = s.strip().rstrip(";") + " ON CONFLICT DO NOTHING"
+        return s
+
+    def execute(self, sql: str, params=None):
+        # PRAGMA table_info(users) xüsusi hal
+        if self.is_pg and sql.strip().upper().startswith("PRAGMA TABLE_INFO("):
+            table = sql.strip()[len("PRAGMA table_info("):-1].strip().strip("'").strip('"')
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT column_name AS name
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name=%s
+                ORDER BY ordinal_position
+                """,
+                (table,),
+            )
+            rows = cur.fetchall()
+            # dict kimi qaytarmaq üçün:
+            class _R(dict):
+                __getitem__ = dict.get
+            return type("C", (), {"fetchall": lambda self2: [_R({"name": r[0]}) for r in rows]})()
+
+        sql2 = self._rewrite_sql(sql)
+
+        if self.is_pg:
+            # ? -> %s
+            if params is not None:
+                sql2 = sql2.replace("?", "%s")
+
+            cur = self.conn.cursor()
+            cur.execute(sql2, params or ())
+            return cur
+        else:
+            return self.conn.execute(sql2, params or ())
+
+    def executescript(self, script: str):
+        if not self.is_pg:
+            cur = self.conn.cursor()
+            cur.executescript(script)
+            return cur
+
+        # Postgres üçün init_db ayrıca yazılacaq; buranı istifadə etməyəcəyik.
+        raise RuntimeError("executescript is not supported for Postgres; use init_db()")
+
+
 def get_db():
     if "db" not in g:
-        g.db = engine.raw_connection()
-        g.db.row_factory = sqlite3.Row
+        raw = engine.raw_connection()
+        g.db = DBCompat(raw, _is_postgres())
+
         if not getattr(g, "status_normalized", False):
             g.status_normalized = True
-            cols = {r["name"] for r in g.db.execute("PRAGMA table_info(users)")}
+
+            # bu PRAGMA çağırışı wrapper ilə Postgres-də də işləyir
+            cols = {r["name"] for r in g.db.execute("PRAGMA table_info(users)").fetchall()}
+
             if "yx_next_eligible" not in cols:
                 g.db.execute("ALTER TABLE users ADD COLUMN yx_next_eligible TEXT")
             if "nb_next_eligible" not in cols:
                 g.db.execute("ALTER TABLE users ADD COLUMN nb_next_eligible TEXT")
             if "cycle_mask" not in cols:
-                g.db.execute(
-                    "ALTER TABLE users ADD COLUMN cycle_mask INTEGER NOT NULL DEFAULT 0"
-                )
+                g.db.execute("ALTER TABLE users ADD COLUMN cycle_mask INTEGER NOT NULL DEFAULT 0")
             if "cycle_started" not in cols:
                 g.db.execute("ALTER TABLE users ADD COLUMN cycle_started TEXT")
+
             g.db.execute("UPDATE users SET status='ttm' WHERE status='tk'")
+
             rows = g.db.execute("SELECT id, status FROM users").fetchall()
             for r in rows:
                 norm = normalize_status_code(r["status"])
                 if norm in VALID_STATUSES and norm != r["status"]:
-                    g.db.execute(
-                        "UPDATE users SET status=? WHERE id=?", (norm, r["id"])
-                    )
+                    g.db.execute("UPDATE users SET status=? WHERE id=?", (norm, r["id"]))
+
+            # bu CREATE TABLE-lər Postgres-də də işləyəcək (IF NOT EXISTS var)
             g.db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS boluk2_fill_log (
@@ -261,12 +354,10 @@ def get_db():
                 )
                 """
             )
-            g.db.execute(
-                "CREATE INDEX IF NOT EXISTS idx_boluk2_fill_log_month ON boluk2_fill_log(month)"
-            )
+            g.db.execute("CREATE INDEX IF NOT EXISTS idx_boluk2_fill_log_month ON boluk2_fill_log(month)")
             g.db.commit()
-    return g.db
 
+    return g.db
 
 @app.teardown_appcontext
 def close_db(_exc):
@@ -276,20 +367,140 @@ def close_db(_exc):
 
 
 def init_db():
-    db = engine.raw_connection()
-    db.row_factory = sqlite3.Row
-    cur = db.cursor()
+    db = get_db()
 
-    # yx eligible-ləri (həftədə 1 dəfə qaydasına görə) bir az üstün tut
+    if _is_postgres():
+        # Postgres DDL (SQLite AUTOINCREMENT və s. olmadan)
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'normal',
+            status TEXT NOT NULL DEFAULT 'aktiv',
+            boluk INTEGER NOT NULL DEFAULT 1,
+            last_selected TEXT,
+            rotation_score REAL NOT NULL DEFAULT 0,
+            last_group TEXT,
+            yx_next_eligible TEXT,
+            nb_next_eligible TEXT,
+            cycle_mask INTEGER NOT NULL DEFAULT 0,
+            cycle_started TEXT
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS shifts (
+            id BIGSERIAL PRIMARY KEY,
+            shift_date TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            UNIQUE(shift_date, group_name, user_id)
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS shift_changes (
+            id BIGSERIAL PRIMARY KEY,
+            shift_date TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            old_user_id INTEGER NOT NULL,
+            new_user_id INTEGER NOT NULL,
+            reason TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS shift_meta (
+            shift_date TEXT PRIMARY KEY,
+            confirmed_at TEXT
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS test_meta (
+            month TEXT PRIMARY KEY,
+            saved_at TEXT
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS test_shifts (
+            id BIGSERIAL PRIMARY KEY,
+            month TEXT NOT NULL,
+            shift_date TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            user_id INTEGER NOT NULL
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS weekend_leave (
+            user_id INTEGER PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 1
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS boluk2_fill_log (
+            month TEXT NOT NULL,
+            shift_date TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (shift_date, user_id)
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS boluk2_fill_history (
+            month TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (month, user_id)
+        )
+        """)
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+
+        db.execute("CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(shift_date)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_shift_meta_date ON shift_meta(shift_date)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_test_shifts_month ON test_shifts(month)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_shift_changes_date ON shift_changes(shift_date)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_boluk2_fill_log_month ON boluk2_fill_log(month)")
+
+        db.commit()
+
+        # Seed 40 users if empty
+        c = db.execute("SELECT COUNT(*) AS c FROM users").fetchone()
+        if int(c["c"]) == 0:
+            for i in range(1, 41):
+                db.execute(
+                    "INSERT INTO users (id, name, role, status, boluk) VALUES (?, ?, 'normal', 'aktiv', 1) ON CONFLICT (id) DO NOTHING",
+                    (i, f"User {i}"),
+                )
+            db.commit()
+
+        return
+
+    # --- SQLite yolu (sənin köhnə məntiqin) ---
+    raw = engine.raw_connection()
+    raw.row_factory = sqlite3.Row
+    cur = raw.cursor()
     cur.executescript(
         """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'normal',  -- bas / normal
-            status TEXT NOT NULL DEFAULT 'aktiv', -- aktiv, yx, izinli, tm, tp, ttm
-            boluk INTEGER NOT NULL DEFAULT 1,     -- 1-ci / 2-ci boluk
-            last_selected TEXT,                   -- shift start date: YYYY-MM-DD
+            role TEXT NOT NULL DEFAULT 'normal',
+            status TEXT NOT NULL DEFAULT 'aktiv',
+            boluk INTEGER NOT NULL DEFAULT 1,
+            last_selected TEXT,
             rotation_score REAL NOT NULL DEFAULT 0,
             last_group TEXT,
             yx_next_eligible TEXT,
@@ -300,7 +511,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS shifts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            shift_date TEXT NOT NULL,            -- shift start date: YYYY-MM-DD (starts 18:00)
+            shift_date TEXT NOT NULL,
             group_name TEXT NOT NULL,
             user_id INTEGER NOT NULL,
             UNIQUE(shift_date, group_name, user_id)
@@ -367,55 +578,9 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_boluk2_fill_log_month ON boluk2_fill_log(month);
         """
     )
-    db.commit()
+    raw.commit()
+    raw.close()
 
-    # yx eligible-ləri (həftədə 1 dəfə qaydasına görə) bir az üstün tut
-    cols = [r["name"] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
-    if "yx_next_eligible" not in cols:
-        cur.execute("ALTER TABLE users ADD COLUMN yx_next_eligible TEXT")
-        db.commit()
-    if "boluk" not in cols:
-        cur.execute("ALTER TABLE users ADD COLUMN boluk INTEGER NOT NULL DEFAULT 1")
-        db.commit()
-        cur.execute("UPDATE users SET boluk=1 WHERE boluk IS NULL")
-        db.commit()
-    if "cycle_mask" not in cols:
-        cur.execute(
-            "ALTER TABLE users ADD COLUMN cycle_mask INTEGER NOT NULL DEFAULT 0"
-        )
-        db.commit()
-    if "cycle_started" not in cols:
-        cur.execute("ALTER TABLE users ADD COLUMN cycle_started TEXT")
-        db.commit()
-
-    # Seed 40 users if empty
-    cur.execute("SELECT COUNT(*) AS c FROM users")
-    if cur.fetchone()["c"] == 0:
-        for i in range(1, 41):
-            cur.execute(
-                "INSERT INTO users (id, name, role, status, boluk) VALUES (?, ?, 'normal', 'aktiv', 1)",
-                (i, f"User {i}"),
-            )
-        db.commit()
-
-    # Normalize legacy tk -> ttm
-    cur.execute("UPDATE users SET status='ttm' WHERE status='tk'")
-    row = cur.execute("SELECT value FROM settings WHERE key='status_days'").fetchone()
-    if row:
-        try:
-            raw = json.loads(row[0])
-        except Exception:
-            raw = None
-        if isinstance(raw, dict) and "tk" in raw:
-            raw["ttm"] = raw.get("ttm", raw["tk"])
-            raw.pop("tk", None)
-            cur.execute(
-                "UPDATE settings SET value=? WHERE key='status_days'",
-                (json.dumps(raw, ensure_ascii=False),),
-            )
-            db.commit()
-
-    db.close()
 
 
 def get_setting(db: sqlite3.Connection, key: str, default=None):
@@ -4177,5 +4342,6 @@ def export_docx():
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=8888, debug=False)
+
 
 
