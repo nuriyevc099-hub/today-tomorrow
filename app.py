@@ -2,7 +2,6 @@ from __future__ import annotations
 import os
 import sys
 import shutil
-from sqlalchemy import create_engine
 import sqlite3
 import json
 import unicodedata
@@ -11,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from flask import Flask, g, render_template, request, redirect, url_for, send_file, flash, session
 import random
+
+from sqlalchemy import create_engine
 
 # Word export optional
 try:
@@ -30,10 +31,28 @@ DB_PATH = str(DATA_DIR / "db.sqlite3")
 EXPORT_DIR = str(DATA_DIR)
 CONSOLE_PIN = "2424"
 
+# (optional) packaged exe üçün: db yoxdursa bundled-dan kopyala
 if getattr(sys, "frozen", False):
     bundled_db = BASE_DIR / "db.sqlite3"
     if not Path(DB_PATH).exists() and bundled_db.exists():
         shutil.copy2(bundled_db, DB_PATH)
+
+# =========================
+# DB ENGINE (Neon / SQLite)
+# =========================
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    # Bəzi platformalarda "postgres://" ola bilir, SQLAlchemy üçün "postgresql://" lazımdır
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+    # Neon üçün SSL parametrləri URL-də artıq olur; pool_pre_ping bağlantını sağlam saxlayır
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+else:
+    # local / fallback
+    engine = create_engine(f"sqlite:///{DB_PATH}", pool_pre_ping=True)
+
 
 # 10 normal slot + 1 bas = 11
 GROUP_SLOTS = [
@@ -4158,4 +4177,5 @@ def export_docx():
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=8888, debug=False)
+
 
