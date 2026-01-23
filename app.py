@@ -370,16 +370,17 @@ def init_db():
     db = get_db()
 
     if _is_postgres():
-        # Postgres DDL (SQLite AUTOINCREMENT və s. olmadan)
+        # ---- Postgres DDL ----
+
         db.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             name TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'normal',
             status TEXT NOT NULL DEFAULT 'aktiv',
             boluk INTEGER NOT NULL DEFAULT 1,
             last_selected TEXT,
-            rotation_score REAL NOT NULL DEFAULT 0,
+            rotation_score DOUBLE PRECISION NOT NULL DEFAULT 0,
             last_group TEXT,
             yx_next_eligible TEXT,
             nb_next_eligible TEXT,
@@ -393,7 +394,7 @@ def init_db():
             id BIGSERIAL PRIMARY KEY,
             shift_date TEXT NOT NULL,
             group_name TEXT NOT NULL,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             UNIQUE(shift_date, group_name, user_id)
         )
         """)
@@ -403,8 +404,8 @@ def init_db():
             id BIGSERIAL PRIMARY KEY,
             shift_date TEXT NOT NULL,
             group_name TEXT NOT NULL,
-            old_user_id INTEGER NOT NULL,
-            new_user_id INTEGER NOT NULL,
+            old_user_id BIGINT NOT NULL,
+            new_user_id BIGINT NOT NULL,
             reason TEXT,
             created_at TEXT NOT NULL
         )
@@ -430,13 +431,13 @@ def init_db():
             month TEXT NOT NULL,
             shift_date TEXT NOT NULL,
             group_name TEXT NOT NULL,
-            user_id INTEGER NOT NULL
+            user_id BIGINT NOT NULL
         )
         """)
 
         db.execute("""
         CREATE TABLE IF NOT EXISTS weekend_leave (
-            user_id INTEGER PRIMARY KEY,
+            user_id BIGINT PRIMARY KEY,
             enabled INTEGER NOT NULL DEFAULT 1
         )
         """)
@@ -445,7 +446,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS boluk2_fill_log (
             month TEXT NOT NULL,
             shift_date TEXT NOT NULL,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             PRIMARY KEY (shift_date, user_id)
         )
         """)
@@ -453,7 +454,7 @@ def init_db():
         db.execute("""
         CREATE TABLE IF NOT EXISTS boluk2_fill_history (
             month TEXT NOT NULL,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             count INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (month, user_id)
         )
@@ -475,6 +476,10 @@ def init_db():
         db.execute("CREATE INDEX IF NOT EXISTS idx_boluk2_fill_log_month ON boluk2_fill_log(month)")
 
         db.commit()
+        return
+
+    # (sqlite hissən səndə necə idisə elə qalsın)
+
 
         # Seed 40 users if empty
         c = db.execute("SELECT COUNT(*) AS c FROM users").fetchone()
@@ -4347,6 +4352,7 @@ except Exception as e:
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8888, debug=False)
+
 
 
 
