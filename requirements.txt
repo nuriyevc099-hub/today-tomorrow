@@ -2,3 +2,5 @@ Flask
 gunicorn
 python-docx
 lxml
+SQLAlchemy
+psycopg2-binary
