@@ -4339,13 +4339,16 @@ def export_docx():
     return send_file(out_path, as_attachment=True, download_name=os.path.basename(out_path))
 
 
-# Render/Gunicorn üçün: start zamanı DB-ni hazırla (Neon/Postgres-də tablolar yaransın)
-with app.app_context():
-    init_db()
+try:
+    with app.app_context():
+        init_db()
+except Exception as e:
+    print("INIT_DB ERROR:", e)
 
-# Lokal run üçün (Windows-da python app.py işlədəndə)
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8888, debug=False)
+
+
 
 
 
