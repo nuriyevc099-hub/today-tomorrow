@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import sys
 import shutil
+from sqlalchemy import create_engine
 import sqlite3
 import json
 import unicodedata
@@ -198,7 +199,7 @@ def inject_labels():
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
+        g.db = engine.raw_connection()
         g.db.row_factory = sqlite3.Row
         if not getattr(g, "status_normalized", False):
             g.status_normalized = True
@@ -256,7 +257,7 @@ def close_db(_exc):
 
 
 def init_db():
-    db = sqlite3.connect(DB_PATH)
+    db = engine.raw_connection()
     db.row_factory = sqlite3.Row
     cur = db.cursor()
 
@@ -4157,3 +4158,4 @@ def export_docx():
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=8888, debug=False)
+
