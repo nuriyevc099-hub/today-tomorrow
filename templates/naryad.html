@@ -12,7 +12,7 @@
   <!-- Header -->
   <header class="top">
       <div class="top-main">
-        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <h1>NFK</h1>
         <nav>
           <a class="is-active" href="{{ url_for('naryad', d=shift_date.strftime('%Y-%m-%d')) }}">Naryad</a>
           <a href="{{ url_for('users') }}">İstifadəçilər</a>
@@ -57,8 +57,8 @@
           <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
         </div>
         <div class="info-item">
-          <div class="info-title">2-ci Bölük</div>
-          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+          <div class="info-title">2-ci Komando</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci komandodan ədalətlə doldurulur.</div>
         </div>
       </div>
     </dialog>
@@ -95,14 +95,14 @@
       <div class="row action-row">
         <form method="post" action="{{ url_for('generate') }}" class="inline-form">
           <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
-          <button class="primary" type="submit">Yeni naryad yarat</button>
+          <button class="primary" type="submit">New n</button>
         </form>
 
         <form method="post" action="{{ url_for('toggle_boluk2') }}" class="inline-form">
           <input type="hidden" name="d" value="{{ shift_date.strftime('%Y-%m-%d') }}"/>
           <input type="hidden" name="enabled" value="{{ 0 if boluk2_enabled else 1 }}"/>
           <button class="btn" type="submit">
-            2-ci bölük: {{ "ON" if boluk2_enabled else "OFF" }}
+            2-ci Komando: {{ "ON" if boluk2_enabled else "OFF" }}
           </button>
         </form>
 
@@ -134,7 +134,7 @@
   <!-- Naryad Table + Status Panels -->
   <section class="grid">
       <div class="card">
-        <h2>Yeni Naryad</h2>
+        <h2>New n</h2>
         <div class="table naryad-table">
           <div class="trow thead">
             <div>Qrup</div><div>Növbətçilər</div>
@@ -262,7 +262,7 @@
         <div class="free-panel free-split">
           <div class="free-block">
             <div class="free-head">
-              <h3>Boşda qalanlar (Bölük 1)</h3>
+              <h3>Boşda qalanlar (Komando 1)</h3>
               <span class="status-count">{{ free_boluk1|length }}</span>
             </div>
             {% set free1_preview = free_boluk1[:4] %}
@@ -284,7 +284,7 @@
             {% if free1_more %}
               <dialog id="free-b1-all" class="status-dialog">
                 <div class="dialog-head">
-                  <h3>Boşda qalanlar (Bölük 1)</h3>
+                  <h3>Boşda qalanlar (Komando 1)</h3>
                   <button type="button" class="icon-btn" data-close>Bağla</button>
                 </div>
                 <div class="dialog-body">
@@ -297,7 +297,7 @@
           </div>
           <div class="free-block">
             <div class="free-head">
-              <h3>Boşda qalanlar (Bölük 2)</h3>
+              <h3>Boşda qalanlar (Komando 2)</h3>
               <span class="status-count">{{ free_boluk2|length }}</span>
             </div>
             {% set free2_preview = free_boluk2[:4] %}
@@ -319,7 +319,7 @@
             {% if free2_more %}
               <dialog id="free-b2-all" class="status-dialog">
                 <div class="dialog-head">
-                  <h3>Boşda qalanlar (Bölük 2)</h3>
+                  <h3>Boşda qalanlar (Komando 2)</h3>
                   <button type="button" class="icon-btn" data-close>Bağla</button>
                 </div>
                 <div class="dialog-body">
@@ -335,7 +335,7 @@
         <div class="boluk-panel">
           <div class="boluk-block">
             <div class="boluk-head">
-              <h3>Bölük 1</h3>
+              <h3>Komando 1</h3>
               <span class="status-count">{{ boluk1_users|length }}</span>
             </div>
             <div class="boluk-list">
@@ -350,7 +350,7 @@
           </div>
           <div class="boluk-block">
             <div class="boluk-head">
-              <h3>Bölük 2</h3>
+              <h3>Komando 2</h3>
               <span class="status-count">{{ boluk2_users|length }}</span>
             </div>
             <div class="boluk-list">

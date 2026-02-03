@@ -12,7 +12,7 @@
   <!-- Header -->
   <header class="top">
       <div class="top-main">
-        <h1>I Mühafizə Bölüyü Naryad Cədvəli</h1>
+        <h1>NFK</h1>
         <nav>
           <a href="{{ url_for('home') }}">Naryad</a>
           <a href="{{ url_for('users') }}">İstifadəçilər</a>
@@ -57,8 +57,8 @@
           <div class="info-text">Həftə günləri: {{ app_info.yx_days }}. Seçiləndə cooldown: {{ app_info.yx_cooldown }} gün. Gündə max {{ app_info.yx_max_per_day }} nəfər.</div>
         </div>
         <div class="info-item">
-          <div class="info-title">2-ci Bölük</div>
-          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci bölükdən ədalətlə doldurulur.</div>
+          <div class="info-title">2-ci Komando</div>
+          <div class="info-text">Status: {{ "ON" if app_info.boluk2_enabled else "OFF" }}. Cycle: {{ app_info.boluk2_cycle_days }} gün. ON olduqda bütün aktivlər birlikdə seçilir, çatmayan yerlər 1-ci komandodan ədalətlə doldurulur.</div>
         </div>
       </div>
     </dialog>
@@ -70,11 +70,11 @@
           <label>Ay:</label>
           <input type="month" name="month" value="{{ ym }}">
 
-          <label>Bölük:</label>
+          <label>Komando:</label>
           <select name="boluk">
             <option value="" {% if not boluk_filter %}selected{% endif %}>Hamısı</option>
-            <option value="1" {% if boluk_filter==1 %}selected{% endif %}>Bölük 1</option>
-            <option value="2" {% if boluk_filter==2 %}selected{% endif %}>Bölük 2</option>
+            <option value="1" {% if boluk_filter==1 %}selected{% endif %}>Komando 1</option>
+            <option value="2" {% if boluk_filter==2 %}selected{% endif %}>Komando 2</option>
           </select>
 
           <label>İstifadəçi:</label>
