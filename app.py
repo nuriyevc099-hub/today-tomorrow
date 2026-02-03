@@ -2820,7 +2820,7 @@ def toggle_boluk2():
     enabled = enabled_raw in {"1", "true", "on", "yes"}
     db = get_db()
     set_setting(db, "boluk2_enabled", enabled)
-    msg = "2-ci boluk aktivdir." if enabled else "2-ci boluk sonduruldu."
+    msg = "2-ci komando aktivdir." if enabled else "2-ci komando sonduruldu."
     flash(msg, "ok")
     return redirect(url_for("naryad", d=d))
 
@@ -4128,7 +4128,7 @@ def export_docx():
 
     doc = Document()
     doc.add_heading(
-        f"I Mühafizə Bölüyü Naryad Cədvəli - {shift_date.strftime("%d.%m.%Y")}", level=1
+        f"NFK - {shift_date.strftime("%d.%m.%Y")}", level=1
     )
     doc.add_paragraph(
         f"Vaxtı: {SHIFT_START_HOUR:02d}:00 -> növbəti gün {SHIFT_START_HOUR:02d}:00 ({shift_date.strftime("%d.%m.%Y")} -> {shift_next_date.strftime("%d.%m.%Y")})"
